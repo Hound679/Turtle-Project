@@ -10,144 +10,117 @@
     #hud{
       position: fixed; top: 10px; left: 10px;
       background: rgba(0,0,0,.7); color: #fff; padding: 10px 12px;
-      font: 14px Arial; border-radius: 10px; max-width: 360px;
+      font: 14px Arial; border-radius: 10px;
     }
     #hud code{ color: #7CFC00; }
   </style>
 </head>
 <body>
-  <div id="hud">
-    Status: <span id="status">connecting...</span><br/>
-    Your id: <code id="myid">-</code><br/>
-    Players online: <span id="count">0</span><br/>
-    Server: <code id="wsurl"></code>
-  </div>
 
-  <canvas id="game" width="800" height="500"></canvas>
+<div id="hud">
+  Status: <span id="status">connecting...</span><br/>
+  Your id: <code id="myid">-</code><br/>
+  Players online: <span id="count">0</span><br/>
+  Server: <code id="wsurl"></code>
+</div>
 
-  <script>
-  const canvas = document.getElementById("game");
-  const ctx = canvas.getContext("2d");
+<canvas id="game" width="800" height="500"></canvas>
 
-  // ✅ PON AQUÍ TU URL DE WEBSOCKET (la del servidor)
-  const WS_URL = "wss://turtle-ws-server.onrender.com";
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
+// 🔗 TU WEBSOCKET
+const WS_URL = "wss://turtle-ws-server.onrender.com";
+document.getElementById("wsurl").textContent = WS_URL;
 
-  document.getElementById("wsurl").textContent = WS_URL;
+// HUD
+const statusEl = document.getElementById("status");
+const myIdEl = document.getElementById("myid");
+const countEl = document.getElementById("count");
 
-  // Estado de jugadores recibidos del server
-  const players = {}; // {id: {x,y,angle,color,label}}
+// Estado
+const players = {};
+const me = { id: null, x: 400, y: 250, angle: 0, speed: 3, turnSpeed: 0.08 };
 
-  // Input local (WASD)
-  const keys = { w:false, a:false, s:false, d:false };
-  window.addEventListener("keydown", e => { const k = e.key.toLowerCase(); if (k in keys) keys[k]=true; });
-  window.addEventListener("keyup",   e => { const k = e.key.toLowerCase(); if (k in keys) keys[k]=false; });
+// Teclas WASD
+const keys = { w:false, a:false, s:false, d:false };
+window.addEventListener("keydown", e => { const k=e.key.toLowerCase(); if(k in keys) keys[k]=true; });
+window.addEventListener("keyup",   e => { const k=e.key.toLowerCase(); if(k in keys) keys[k]=false; });
 
-  // Mi estado local
-  const me = {
-    id: null,
-    x: canvas.width/2,
-    y: canvas.height/2,
-    angle: 0,
-    speed: 3,
-    turnSpeed: 0.08
-  };
+// WebSocket
+const ws = new WebSocket(WS_URL);
 
-  // WebSocket
-  const statusEl = document.getElementById("status");
-  const myIdEl = document.getElementById("myid");
-  const countEl = document.getElementById("count");
+ws.addEventListener("open", () => statusEl.textContent = "connected");
+ws.addEventListener("close", () => statusEl.textContent = "disconnected");
 
-  const ws = new WebSocket(WS_URL);
+ws.addEventListener("message", (ev) => {
+  const msg = JSON.parse(ev.data);
 
-  ws.addEventListener("open", () => {
-    statusEl.textContent = "connected";
-  });
-
-  ws.addEventListener("close", () => {
-    statusEl.textContent = "disconnected";
-  });
-
-  ws.addEventListener("message", (ev) => {
-    const msg = JSON.parse(ev.data);
-
-    if (msg.type === "welcome") {
-      me.id = msg.id;
-      myIdEl.textContent = me.id;
-    }
-
-    if (msg.type === "state") {
-      // msg.players = array de jugadores
-      for (const p of msg.players) {
-        players[p.id] = p;
-      }
-      // borra los que ya no están
-      for (const id in players) {
-        if (!msg.players.find(p => p.id === id)) delete players[id];
-      }
-      countEl.textContent = msg.players.length;
-    }
-  });
-
-  function update() {
-    // Moverme localmente (WASD)
-    if (keys.a) me.angle -= me.turnSpeed;
-    if (keys.d) me.angle += me.turnSpeed;
-
-    if (keys.w) { me.x += Math.cos(me.angle)*me.speed; me.y += Math.sin(me.angle)*me.speed; }
-    if (keys.s) { me.x -= Math.cos(me.angle)*me.speed; me.y -= Math.sin(me.angle)*me.speed; }
-
-    // límites
-    me.x = Math.max(0, Math.min(canvas.width, me.x));
-    me.y = Math.max(0, Math.min(canvas.height, me.y));
-
-    // Enviar mi estado al servidor (si conectado)
-    if (ws.readyState === WebSocket.OPEN && me.id) {
-      ws.send(JSON.stringify({
-        type: "move",
-        x: me.x, y: me.y, angle: me.angle
-      }));
-    }
+  if (msg.type === "welcome") {
+    me.id = msg.id;
+    myIdEl.textContent = me.id;
   }
 
-  function drawPlayer(p) {
-    const size = 18;
-
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    ctx.rotate(p.angle);
-
-    ctx.beginPath();
-    ctx.moveTo(size, 0);
-    ctx.lineTo(-size * 0.8, size * 0.6);
-    ctx.lineTo(-size * 0.8, -size * 0.6);
-    ctx.closePath();
-    ctx.fillStyle = p.color;
-    ctx.fill();
-
-    ctx.restore();
-
-    ctx.font = "bold 16px Arial";
-    ctx.textAlign = "center";
-    ctx.fillStyle = "black";
-    ctx.fillText(p.label, p.x, p.y - 25);
-  }
-
-  function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Dibujar todos los jugadores que manda el servidor
+  if (msg.type === "state") {
+    for (const p of msg.players) players[p.id] = p;
     for (const id in players) {
-      drawPlayer(players[id]);
+      if (!msg.players.find(p => p.id === id)) delete players[id];
     }
+    countEl.textContent = msg.players.length;
   }
 
-  function loop() {
-    update();
-    draw();
-    requestAnimationFrame(loop);
+  if (msg.type === "full") {
+    statusEl.textContent = "server full (2 players max)";
   }
-  loop();
-  </script>
+});
+
+function update() {
+  if (keys.a) me.angle -= me.turnSpeed;
+  if (keys.d) me.angle += me.turnSpeed;
+  if (keys.w) { me.x += Math.cos(me.angle)*me.speed; me.y += Math.sin(me.angle)*me.speed; }
+  if (keys.s) { me.x -= Math.cos(me.angle)*me.speed; me.y -= Math.sin(me.angle)*me.speed; }
+
+  me.x = Math.max(0, Math.min(canvas.width, me.x));
+  me.y = Math.max(0, Math.min(canvas.height, me.y));
+
+  if (ws.readyState === WebSocket.OPEN && me.id) {
+    ws.send(JSON.stringify({ type:"move", x:me.x, y:me.y, angle:me.angle }));
+  }
+}
+
+function drawPlayer(p) {
+  const size = 18;
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(p.angle);
+  ctx.beginPath();
+  ctx.moveTo(size,0);
+  ctx.lineTo(-size*0.8, size*0.6);
+  ctx.lineTo(-size*0.8,-size*0.6);
+  ctx.closePath();
+  ctx.fillStyle = p.color;
+  ctx.fill();
+  ctx.restore();
+
+  ctx.font = "bold 16px Arial";
+  ctx.textAlign = "center";
+  ctx.fillStyle = "black";
+  ctx.fillText(p.label, p.x, p.y - 25);
+}
+
+function draw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  for (const id in players) drawPlayer(players[id]);
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+
 </body>
 </html>
