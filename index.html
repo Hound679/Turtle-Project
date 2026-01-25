@@ -3,124 +3,346 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Turtle Online (2 players)</title>
+  <title>Turtle Online</title>
   <style>
-    body { margin: 0; display: grid; place-items: center; height: 100vh; background: #111; }
+    body { margin: 0; display: grid; place-items: center; height: 100vh; background: #111; font-family: Arial, sans-serif; }
     canvas { background: #fff; border: 2px solid #000; }
+
+    /* HUD */
     #hud{
       position: fixed; top: 10px; left: 10px;
-      background: rgba(0,0,0,.7); color: #fff; padding: 10px 12px;
+      background: rgba(0,0,0,.75); color: #fff; padding: 10px 12px;
       font: 14px Arial; border-radius: 10px;
+      min-width: 260px;
     }
     #hud code{ color: #7CFC00; }
+    #mode { font-weight: bold; }
+
+    /* Title */
+    #gameTitle{
+      position: fixed;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: white;
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: .5px;
+      text-shadow: 0 2px 10px rgba(0,0,0,.6);
+      user-select: none;
+    }
+    #gameTitle span { color: #7CFC00; margin: 0 10px; }
+
+    /* Menu overlay */
+    #menuOverlay{
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at center, rgba(0,0,0,.75), rgba(0,0,0,.92));
+      display: grid;
+      place-items: center;
+      z-index: 9999;
+    }
+    #menuBox{
+      width: min(520px, 92vw);
+      border-radius: 18px;
+      padding: 26px 22px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.12);
+      box-shadow: 0 12px 40px rgba(0,0,0,.55);
+      text-align: center;
+      color: #fff;
+    }
+    #menuBox h1{
+      margin: 0 0 6px 0;
+      font-size: 34px;
+      letter-spacing: 1px;
+    }
+    #menuBox p{
+      margin: 0 0 18px 0;
+      color: rgba(255,255,255,.85);
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    .btnRow{
+      display: grid;
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .btn{
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.10);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform .08s ease, background .2s ease;
+      user-select: none;
+    }
+    .btn:hover{ background: rgba(255,255,255,.16); transform: translateY(-1px); }
+    .btn:active{ transform: translateY(0px) scale(.99); }
+
+    .btnGreen{
+      border-color: rgba(124,252,0,.35);
+      background: rgba(124,252,0,.12);
+    }
+    .btnGreen:hover{ background: rgba(124,252,0,.18); }
+
+    .smallNote{
+      margin-top: 12px;
+      font-size: 12px;
+      color: rgba(255,255,255,.75);
+    }
+    .smallNote code { color:#7CFC00; }
+
+    /* Hide overlay helper */
+    .hidden{ display: none !important; }
   </style>
 </head>
+
 <body>
+  <div id="gameTitle">Multiplayer <span>|</span> Single Player</div>
 
-<div id="hud">
-  Status: <span id="status">connecting...</span><br/>
-  Your id: <code id="myid">-</code><br/>
-  Players online: <span id="count">0</span><br/>
-  Server: <code id="wsurl"></code>
-</div>
+  <div id="hud">
+    Mode: <span id="mode">MENU</span><br/>
+    Status: <span id="status">-</span><br/>
+    Your id: <code id="myid">-</code><br/>
+    Players online: <span id="count">0</span><br/>
+    Server: <code id="wsurl"></code><br/>
+    <span style="opacity:.8;">Tip: Press <b>Esc</b> to open menu</span>
+  </div>
 
-<canvas id="game" width="800" height="500"></canvas>
+  <!-- MENU -->
+  <div id="menuOverlay">
+    <div id="menuBox">
+      <h1>Turtle</h1>
+      <p>Choose a mode. <b>Single Player</b> runs offline. <b>Multiplayer</b> connects to the WebSocket server.</p>
+
+      <div class="btnRow">
+        <button class="btn" id="btnSingle">Single Player (Offline)</button>
+        <button class="btn btnGreen" id="btnMulti">Multiplayer (Online)</button>
+      </div>
+
+      <div class="smallNote">
+        Multiplayer server: <code id="menuWs"></code>
+      </div>
+    </div>
+  </div>
+
+  <canvas id="game" width="800" height="500"></canvas>
 
 <script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
 
-// 🔗 TU WEBSOCKET
-const WS_URL = "wss://turtle-ws-server.onrender.com";
-document.getElementById("wsurl").textContent = WS_URL;
+  // 🔗 TU WEBSOCKET (sin slash final)
+  const WS_URL = "wss://turtle-ws-server.onrender.com";
+  document.getElementById("wsurl").textContent = WS_URL;
+  document.getElementById("menuWs").textContent = WS_URL;
 
-// HUD
-const statusEl = document.getElementById("status");
-const myIdEl = document.getElementById("myid");
-const countEl = document.getElementById("count");
+  // HUD
+  const modeEl   = document.getElementById("mode");
+  const statusEl = document.getElementById("status");
+  const myIdEl   = document.getElementById("myid");
+  const countEl  = document.getElementById("count");
 
-// Estado
-const players = {};
-const me = { id: null, x: 400, y: 250, angle: 0, speed: 3, turnSpeed: 0.08 };
+  // MENU elements
+  const menuOverlay = document.getElementById("menuOverlay");
+  const btnSingle = document.getElementById("btnSingle");
+  const btnMulti  = document.getElementById("btnMulti");
 
-// Teclas WASD
-const keys = { w:false, a:false, s:false, d:false };
-window.addEventListener("keydown", e => { const k=e.key.toLowerCase(); if(k in keys) keys[k]=true; });
-window.addEventListener("keyup",   e => { const k=e.key.toLowerCase(); if(k in keys) keys[k]=false; });
+  // State
+  let mode = "MENU";          // "SINGLE" | "MULTI" | "MENU"
+  let ws = null;              // WebSocket instance
+  const players = {};         // server players
+  const me = { id:null, x:400, y:250, angle:0, speed:3, turnSpeed:0.08 };
 
-// WebSocket
-const ws = new WebSocket(WS_URL);
+  // Controls
+  const keys = { w:false, a:false, s:false, d:false };
+  window.addEventListener("keydown", e => {
+    const k = e.key.toLowerCase();
+    if (k in keys) keys[k] = true;
 
-ws.addEventListener("open", () => statusEl.textContent = "connected");
-ws.addEventListener("close", () => statusEl.textContent = "disconnected");
-
-ws.addEventListener("message", (ev) => {
-  const msg = JSON.parse(ev.data);
-
-  if (msg.type === "welcome") {
-    me.id = msg.id;
-    myIdEl.textContent = me.id;
-  }
-
-  if (msg.type === "state") {
-    for (const p of msg.players) players[p.id] = p;
-    for (const id in players) {
-      if (!msg.players.find(p => p.id === id)) delete players[id];
+    if (e.key === "Escape") {
+      openMenu();
     }
-    countEl.textContent = msg.players.length;
+  });
+  window.addEventListener("keyup", e => {
+    const k = e.key.toLowerCase();
+    if (k in keys) keys[k] = false;
+  });
+
+  function openMenu(){
+    // If multiplayer, disconnect when opening menu (so Single can be chosen cleanly)
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.close();
+    }
+    ws = null;
+    // clear server players
+    for (const id in players) delete players[id];
+
+    mode = "MENU";
+    modeEl.textContent = "MENU";
+    statusEl.textContent = "-";
+    myIdEl.textContent = "-";
+    countEl.textContent = "0";
+    me.id = null;
+
+    menuOverlay.classList.remove("hidden");
   }
 
-  if (msg.type === "full") {
-    statusEl.textContent = "server full (2 players max)";
+  function startSinglePlayer(){
+    // Ensure websocket is OFF
+    if (ws && ws.readyState === WebSocket.OPEN) ws.close();
+    ws = null;
+
+    // Reset local player
+    me.id = "local";
+    me.x = 400; me.y = 250; me.angle = 0;
+
+    // Only one player exists (local)
+    for (const id in players) delete players[id];
+    players[me.id] = { id:"local", x:me.x, y:me.y, angle:me.angle, color:"green", label:"Player" };
+
+    mode = "SINGLE";
+    modeEl.textContent = "SINGLE";
+    statusEl.textContent = "offline";
+    myIdEl.textContent = "local";
+    countEl.textContent = "1";
+
+    menuOverlay.classList.add("hidden");
   }
-});
 
-function update() {
-  if (keys.a) me.angle -= me.turnSpeed;
-  if (keys.d) me.angle += me.turnSpeed;
-  if (keys.w) { me.x += Math.cos(me.angle)*me.speed; me.y += Math.sin(me.angle)*me.speed; }
-  if (keys.s) { me.x -= Math.cos(me.angle)*me.speed; me.y -= Math.sin(me.angle)*me.speed; }
+  function connectMultiplayer(){
+    // Reset
+    for (const id in players) delete players[id];
+    me.id = null;
+    me.x = 400; me.y = 250; me.angle = 0;
 
-  me.x = Math.max(0, Math.min(canvas.width, me.x));
-  me.y = Math.max(0, Math.min(canvas.height, me.y));
+    mode = "MULTI";
+    modeEl.textContent = "MULTI";
+    statusEl.textContent = "connecting...";
+    myIdEl.textContent = "-";
+    countEl.textContent = "0";
 
-  if (ws.readyState === WebSocket.OPEN && me.id) {
-    ws.send(JSON.stringify({ type:"move", x:me.x, y:me.y, angle:me.angle }));
+    menuOverlay.classList.add("hidden");
+
+    // Connect WS
+    ws = new WebSocket(WS_URL);
+
+    ws.addEventListener("open", () => {
+      statusEl.textContent = "connected";
+    });
+
+    ws.addEventListener("close", () => {
+      // only show disconnected if still in MULTI mode
+      if (mode === "MULTI") statusEl.textContent = "disconnected";
+    });
+
+    ws.addEventListener("message", (ev) => {
+      let msg;
+      try { msg = JSON.parse(ev.data); } catch { return; }
+
+      if (msg.type === "full") {
+        statusEl.textContent = "server full (2 players max)";
+        return;
+      }
+
+      if (msg.type === "welcome") {
+        me.id = msg.id;
+        myIdEl.textContent = me.id;
+      }
+
+      if (msg.type === "state") {
+        // update players dict
+        for (const p of msg.players) players[p.id] = p;
+
+        // remove missing
+        for (const id in players) {
+          if (!msg.players.find(p => p.id === id)) delete players[id];
+        }
+
+        countEl.textContent = msg.players.length;
+
+        // Keep local position in sync (optional)
+        if (me.id && players[me.id]) {
+          me.x = players[me.id].x;
+          me.y = players[me.id].y;
+          me.angle = players[me.id].angle;
+        }
+      }
+    });
   }
-}
 
-function drawPlayer(p) {
-  const size = 18;
-  ctx.save();
-  ctx.translate(p.x, p.y);
-  ctx.rotate(p.angle);
-  ctx.beginPath();
-  ctx.moveTo(size,0);
-  ctx.lineTo(-size*0.8, size*0.6);
-  ctx.lineTo(-size*0.8,-size*0.6);
-  ctx.closePath();
-  ctx.fillStyle = p.color;
-  ctx.fill();
-  ctx.restore();
+  btnSingle.addEventListener("click", startSinglePlayer);
+  btnMulti.addEventListener("click", connectMultiplayer);
 
-  ctx.font = "bold 16px Arial";
-  ctx.textAlign = "center";
-  ctx.fillStyle = "black";
-  ctx.fillText(p.label, p.x, p.y - 25);
-}
+  function updateMovement(){
+    // Move local (same controls for both modes)
+    if (keys.a) me.angle -= me.turnSpeed;
+    if (keys.d) me.angle += me.turnSpeed;
 
-function draw() {
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  for (const id in players) drawPlayer(players[id]);
-}
+    if (keys.w) { me.x += Math.cos(me.angle)*me.speed; me.y += Math.sin(me.angle)*me.speed; }
+    if (keys.s) { me.x -= Math.cos(me.angle)*me.speed; me.y -= Math.sin(me.angle)*me.speed; }
 
-function loop() {
-  update();
-  draw();
-  requestAnimationFrame(loop);
-}
-loop();
+    // bounds
+    me.x = Math.max(0, Math.min(canvas.width, me.x));
+    me.y = Math.max(0, Math.min(canvas.height, me.y));
+
+    if (mode === "SINGLE") {
+      // update local-only player entry
+      players[me.id] = { id:"local", x:me.x, y:me.y, angle:me.angle, color:"green", label:"Player" };
+    }
+
+    if (mode === "MULTI") {
+      // Send to server
+      if (ws && ws.readyState === WebSocket.OPEN && me.id) {
+        ws.send(JSON.stringify({ type:"move", x:me.x, y:me.y, angle:me.angle }));
+      }
+    }
+  }
+
+  function drawPlayer(p){
+    const size = 18;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.angle);
+
+    ctx.beginPath();
+    ctx.moveTo(size, 0);
+    ctx.lineTo(-size * 0.8, size * 0.6);
+    ctx.lineTo(-size * 0.8, -size * 0.6);
+    ctx.closePath();
+    ctx.fillStyle = p.color || "green";
+    ctx.fill();
+
+    ctx.restore();
+
+    ctx.font = "bold 16px Arial";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "black";
+    ctx.fillText(p.label || "Player", p.x, p.y - 25);
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // draw players (single uses players.local; multi uses server state)
+    for (const id in players) drawPlayer(players[id]);
+
+    // If in menu, don't draw anything extra (menu overlay covers)
+  }
+
+  function loop(){
+    if (mode !== "MENU") updateMovement();
+    draw();
+    requestAnimationFrame(loop);
+  }
+  loop();
+
+  // Start in menu
+  openMenu();
 </script>
-
 </body>
 </html>
