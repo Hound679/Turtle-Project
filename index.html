@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Turtle Online (Sword + Enemies + OUT)</title>
+  <title>Turtle Online (Sword + Enemies + OUT + Score)</title>
   <style>
     body { margin: 0; display: grid; place-items: center; height: 100vh; background: #111; font-family: Arial, sans-serif; }
     canvas { background: #fff; border: 2px solid #000; }
@@ -20,7 +20,7 @@
       position: fixed; top: 10px; left: 10px;
       background: rgba(0,0,0,.75); color: #fff; padding: 10px 12px;
       font: 14px Arial; border-radius: 10px;
-      min-width: 300px;
+      min-width: 320px;
     }
     #hud code{ color: #7CFC00; }
 
@@ -54,8 +54,9 @@
     Your id: <code id="myid">-</code><br/>
     Room: <span id="room">-</span><br/>
     Players online: <span id="count">0</span><br/>
+    Your score: <code id="myscore">0</code><br/>
     Server: <code id="wsurl"></code><br/>
-    <span style="opacity:.85;">WASD move. Chat: type + Enter.</span>
+    <span style="opacity:.85;">WASD move. Sword kills enemies. Chat: type + Enter.</span>
   </div>
 
   <canvas id="game" width="800" height="500"></canvas>
@@ -76,16 +77,29 @@
     const myIdEl = document.getElementById("myid");
     const roomEl = document.getElementById("room");
     const countEl = document.getElementById("count");
+    const myScoreEl = document.getElementById("myscore");
 
     const chatInput = document.getElementById("chatInput");
     const messagesDiv = document.getElementById("messages");
 
-    const players = {};   // from server
-    let hazards = [];     // from server
+    // Persisted token (score saved per browser)
+    const TOKEN_KEY = "turtle_token_v1";
+    function getToken() {
+      let t = localStorage.getItem(TOKEN_KEY);
+      if (!t) {
+        t = "t_" + Math.random().toString(16).slice(2) + Date.now().toString(16);
+        localStorage.setItem(TOKEN_KEY, t);
+      }
+      return t;
+    }
+    const myToken = getToken();
+
+    const players = {};
+    let hazards = [];
 
     const keys = { w:false, a:false, s:false, d:false };
-
     function clearKeys(){ for (const k in keys) keys[k] = false; }
+
     chatInput.addEventListener("focus", clearKeys);
     chatInput.addEventListener("blur", clearKeys);
     window.addEventListener("blur", clearKeys);
@@ -106,8 +120,8 @@
 
     const me = {
       id: null,
-      x: canvas.width / 2,
-      y: canvas.height / 2,
+      x: canvas.width/2,
+      y: canvas.height/2,
       angle: 0,
       speed: 3,
       turnSpeed: 0.08
@@ -131,16 +145,13 @@
 
       ws.addEventListener("open", () => {
         statusEl.textContent = "connected";
+        // send token to load score
+        ws.send(JSON.stringify({ type: "hello", token: myToken }));
       });
 
       ws.addEventListener("close", (ev) => {
         statusEl.textContent = "disconnected (reconnecting...)";
-
-        // show kick reason nicely
-        if (ev.code === 4001) {
-          addMsg("ServerBot: You were kicked (3 warnings). Refresh to rejoin.");
-        }
-
+        if (ev.code === 4001) addMsg("ServerBot: You were kicked (3 warnings). Refresh to rejoin.");
         reconnectTimer = setTimeout(connectWS, 1200);
       });
 
@@ -154,14 +165,20 @@
           roomEl.textContent = msg.room ?? "-";
         }
 
+        if (msg.type === "score") {
+          myScoreEl.textContent = String(msg.score ?? 0);
+        }
+
         if (msg.type === "state") {
-          // players
           for (const p of msg.players) players[p.id] = p;
           for (const id in players) {
             if (!msg.players.find(p => p.id === id)) delete players[id];
           }
           hazards = msg.hazards || [];
           countEl.textContent = msg.players.length;
+
+          // update my score from state too
+          if (me.id && players[me.id]) myScoreEl.textContent = String(players[me.id].score ?? 0);
         }
 
         if (msg.type === "chat") {
@@ -172,7 +189,7 @@
 
     connectWS();
 
-    // Chat send
+    // chat send
     chatInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && chatInput.value.trim() !== "") {
         if (ws && ws.readyState === WebSocket.OPEN) {
@@ -185,28 +202,21 @@
 
     function amIOut() {
       const p = players[me.id];
-      if (!p) return false;
-      return (p.outUntil || 0) > Date.now();
+      return p ? (p.outUntil || 0) > Date.now() : false;
     }
-
     function outSecondsLeft() {
       const p = players[me.id];
-      if (!p) return 0;
-      return Math.max(0, Math.ceil(((p.outUntil || 0) - Date.now()) / 1000));
+      return p ? Math.max(0, Math.ceil(((p.outUntil || 0) - Date.now())/1000)) : 0;
     }
 
     function update() {
-      // if OUT, you cannot move
-      if (amIOut()) {
-        clearKeys();
-        return;
-      }
+      if (amIOut()) { clearKeys(); return; }
 
       if (keys.a) me.angle -= me.turnSpeed;
       if (keys.d) me.angle += me.turnSpeed;
 
-      if (keys.w) { me.x += Math.cos(me.angle) * me.speed; me.y += Math.sin(me.angle) * me.speed; }
-      if (keys.s) { me.x -= Math.cos(me.angle) * me.speed; me.y -= Math.sin(me.angle) * me.speed; }
+      if (keys.w) { me.x += Math.cos(me.angle)*me.speed; me.y += Math.sin(me.angle)*me.speed; }
+      if (keys.s) { me.x -= Math.cos(me.angle)*me.speed; me.y -= Math.sin(me.angle)*me.speed; }
 
       me.x = Math.max(0, Math.min(canvas.width, me.x));
       me.y = Math.max(0, Math.min(canvas.height, me.y));
@@ -216,18 +226,15 @@
       }
     }
 
-    // Draw a player triangle + sword in front
     function drawPlayer(p) {
       const size = 18;
-
-      // OUT look
       const isOut = (p.outUntil || 0) > Date.now();
 
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(p.angle);
 
-      // body
+      // body triangle
       ctx.beginPath();
       ctx.moveTo(size, 0);
       ctx.lineTo(-size * 0.8, size * 0.6);
@@ -237,26 +244,24 @@
       ctx.fillStyle = p.color || "green";
       ctx.fill();
 
-      // sword (in front)
-      // sword is a thin triangle pointing forward
+      // sword triangle (front)
       ctx.beginPath();
       ctx.moveTo(size + 18, 0);
-      ctx.lineTo(size + 2, 4);
-      ctx.lineTo(size + 2, -4);
+      ctx.lineTo(size + 2, 5);
+      ctx.lineTo(size + 2, -5);
       ctx.closePath();
       ctx.fillStyle = "gray";
       ctx.fill();
 
       ctx.restore();
 
-      // name
+      // name + score
       ctx.globalAlpha = 1;
       ctx.font = "bold 16px Arial";
       ctx.textAlign = "center";
       ctx.fillStyle = "black";
-      ctx.fillText(p.label || "Player", p.x, p.y - 25);
+      ctx.fillText(`${p.label || "Player"} (${p.score ?? 0})`, p.x, p.y - 25);
 
-      // OUT timer label
       if (isOut) {
         const left = Math.max(0, Math.ceil(((p.outUntil || 0) - Date.now()) / 1000));
         ctx.font = "bold 14px Arial";
@@ -266,7 +271,6 @@
     }
 
     function drawHazard(h) {
-      // point triangle in direction of velocity
       const angle = Math.atan2(h.vy, h.vx);
       const s = h.size || 10;
 
@@ -279,7 +283,7 @@
       ctx.lineTo(-s * 0.9, s * 0.6);
       ctx.lineTo(-s * 0.9, -s * 0.6);
       ctx.closePath();
-      ctx.fillStyle = "black"; // enemy color
+      ctx.fillStyle = "black";
       ctx.fill();
 
       ctx.restore();
@@ -288,18 +292,14 @@
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // enemies
       for (const h of hazards) drawHazard(h);
-
-      // players
       for (const id in players) drawPlayer(players[id]);
 
-      // my OUT banner
       if (amIOut()) {
         ctx.font = "bold 28px Arial";
         ctx.textAlign = "center";
         ctx.fillStyle = "red";
-        ctx.fillText(`YOU ARE OUT: ${outSecondsLeft()}s`, canvas.width / 2, 60);
+        ctx.fillText(`YOU ARE OUT: ${outSecondsLeft()}s`, canvas.width/2, 60);
       }
     }
 
