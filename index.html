@@ -97,50 +97,41 @@
 
     // Chat
     const chatInput = document.getElementById("chatInput");
-    chatInput.addEventListener("focus", clearKeys);
-chatInput.addEventListener("blur", clearKeys);
-
     const messagesDiv = document.getElementById("messages");
 
     // Players from server (room-scoped)
     const players = {};
 
     // Keys
-const keys = { w:false, a:false, s:false, d:false };
+    const keys = { w:false, a:false, s:false, d:false };
 
-function clearKeys(){
-  for (const k in keys) keys[k] = false;
-}
+    function clearKeys(){
+      for (const k in keys) keys[k] = false;
+    }
 
-// ✅ put them here (AFTER clearKeys exists)
-chatInput.addEventListener("focus", clearKeys);
-chatInput.addEventListener("blur", clearKeys);
+    // ✅ when chat focuses/unfocuses, stop movement
+    chatInput.addEventListener("focus", clearKeys);
+    chatInput.addEventListener("blur", clearKeys);
 
+    // ✅ if you tab away, stop movement
+    window.addEventListener("blur", clearKeys);
+    document.addEventListener("visibilitychange", () => { if (document.hidden) clearKeys(); });
 
     function isTyping() {
-  return document.activeElement === chatInput; // chatInput already exists in your code
-}
+      return document.activeElement === chatInput;
+    }
 
-window.addEventListener("keydown", (e) => {
-  if (isTyping()) return; // ✅ don't move while typing
+    window.addEventListener("keydown", (e) => {
+      if (isTyping()) return; // ✅ don't move while typing
+      const k = e.key.toLowerCase();
+      if (k in keys) { keys[k] = true; e.preventDefault(); }
+    });
 
-  const k = e.key.toLowerCase();
-  if (k in keys) {
-    keys[k] = true;
-    e.preventDefault();
-  }
-});
-
-window.addEventListener("keyup", (e) => {
-  if (isTyping()) return; // ✅ don't move while typing
-
-  const k = e.key.toLowerCase();
-  if (k in keys) {
-    keys[k] = false;
-    e.preventDefault();
-  }
-});
-
+    window.addEventListener("keyup", (e) => {
+      if (isTyping()) return; // ✅ don't move while typing
+      const k = e.key.toLowerCase();
+      if (k in keys) { keys[k] = false; e.preventDefault(); }
+    });
 
     // My local state
     const me = {
@@ -207,6 +198,7 @@ window.addEventListener("keyup", (e) => {
           ws.send(JSON.stringify({ type: "chat", text: chatInput.value.trim() }));
         }
         chatInput.value = "";
+        chatInput.blur(); // ✅ go back to game controls
       }
     });
 
