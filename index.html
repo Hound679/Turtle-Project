@@ -97,28 +97,50 @@
 
     // Chat
     const chatInput = document.getElementById("chatInput");
+    chatInput.addEventListener("focus", clearKeys);
+chatInput.addEventListener("blur", clearKeys);
+
     const messagesDiv = document.getElementById("messages");
 
     // Players from server (room-scoped)
     const players = {};
 
     // Keys
-    const keys = { w:false, a:false, s:false, d:false };
+const keys = { w:false, a:false, s:false, d:false };
 
-    function clearKeys(){
-      for (const k in keys) keys[k] = false;
-    }
-    window.addEventListener("blur", clearKeys);
-    document.addEventListener("visibilitychange", () => { if (document.hidden) clearKeys(); });
+function clearKeys(){
+  for (const k in keys) keys[k] = false;
+}
 
-    window.addEventListener("keydown", (e) => {
-      const k = e.key.toLowerCase();
-      if (k in keys) { keys[k] = true; e.preventDefault(); }
-    });
-    window.addEventListener("keyup", (e) => {
-      const k = e.key.toLowerCase();
-      if (k in keys) { keys[k] = false; e.preventDefault(); }
-    });
+// ✅ put them here (AFTER clearKeys exists)
+chatInput.addEventListener("focus", clearKeys);
+chatInput.addEventListener("blur", clearKeys);
+
+
+    function isTyping() {
+  return document.activeElement === chatInput; // chatInput already exists in your code
+}
+
+window.addEventListener("keydown", (e) => {
+  if (isTyping()) return; // ✅ don't move while typing
+
+  const k = e.key.toLowerCase();
+  if (k in keys) {
+    keys[k] = true;
+    e.preventDefault();
+  }
+});
+
+window.addEventListener("keyup", (e) => {
+  if (isTyping()) return; // ✅ don't move while typing
+
+  const k = e.key.toLowerCase();
+  if (k in keys) {
+    keys[k] = false;
+    e.preventDefault();
+  }
+});
+
 
     // My local state
     const me = {
