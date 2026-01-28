@@ -3,60 +3,138 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Turtle Online (Sword + Enemies + OUT + Score)</title>
+  <title>Turtle Online (Singleplayer Mods)</title>
   <style>
-    body { margin: 0; display: grid; place-items: center; height: 100vh; background: #111; font-family: Arial, sans-serif; }
-    canvas { background: #fff; border: 2px solid #000; }
+    body{ margin:0; height:100vh; background:#111; font-family:Arial, sans-serif; overflow:hidden; }
+    canvas{ background:#fff; border:2px solid #000; display:none; }
 
+    /* Title */
     #gameTitle{
-      position: fixed; top: 14px; left: 50%;
-      transform: translateX(-50%);
-      color: white; font-size: 26px; font-weight: 800;
-      text-shadow: 0 2px 10px rgba(0,0,0,.6);
-      user-select: none;
+      position:fixed; top:14px; left:50%;
+      transform:translateX(-50%);
+      color:#fff; font-size:28px; font-weight:900;
+      text-shadow:0 2px 10px rgba(0,0,0,.6);
+      user-select:none;
+      display:none;
     }
 
+    /* HUD */
     #hud{
-      position: fixed; top: 10px; left: 10px;
-      background: rgba(0,0,0,.75); color: #fff; padding: 10px 12px;
-      font: 14px Arial; border-radius: 10px;
-      min-width: 320px;
+      position:fixed; top:10px; left:10px;
+      background:rgba(0,0,0,.75); color:#fff;
+      padding:10px 12px; border-radius:10px;
+      font-size:14px; min-width:320px;
+      display:none;
     }
-    #hud code{ color: #7CFC00; }
+    #hud code{ color:#7CFC00; }
 
+    /* Chat (multiplayer only) */
     #chat{
-      position: fixed; bottom: 10px; left: 50%;
-      transform: translateX(-50%);
-      width: min(520px, 92vw);
-      background: rgba(0,0,0,.75);
-      border-radius: 12px;
-      padding: 8px;
-      color: white;
-      font-size: 14px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.45);
+      position:fixed; bottom:10px; left:50%;
+      transform:translateX(-50%);
+      width:min(520px, 92vw);
+      background:rgba(0,0,0,.75);
+      border-radius:12px;
+      padding:8px;
+      color:white;
+      font-size:14px;
+      box-shadow:0 10px 30px rgba(0,0,0,.45);
+      display:none;
     }
-    #messages{ max-height: 140px; overflow-y: auto; margin-bottom: 6px; padding-right: 4px; }
-    #messages div{ margin-bottom: 4px; }
+    #messages{ max-height:140px; overflow-y:auto; margin-bottom:6px; padding-right:4px; }
+    #messages div{ margin-bottom:4px; }
     #chatInput{
-      width: 100%; box-sizing: border-box;
-      border-radius: 8px; border: none;
-      padding: 8px 10px; outline: none;
-      font-size: 14px;
+      width:100%; box-sizing:border-box;
+      border-radius:8px; border:none;
+      padding:8px 10px; outline:none;
+      font-size:14px;
     }
+
+    /* MENU */
+    #menu{
+      position:fixed; inset:0;
+      display:grid;
+      place-items:center;
+      color:white;
+    }
+    .panel{
+      width:min(520px, 92vw);
+      background:rgba(0,0,0,.75);
+      border-radius:18px;
+      padding:18px;
+      box-shadow:0 20px 50px rgba(0,0,0,.55);
+      text-align:center;
+    }
+    .panel h1{
+      margin:0 0 10px 0;
+      font-size:32px;
+      letter-spacing:.5px;
+    }
+    .panel p{ margin:0 0 14px 0; opacity:.85; }
+
+    .btnRow{ display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+    button{
+      border:none;
+      padding:12px 16px;
+      border-radius:12px;
+      font-size:16px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .btnPrimary{ background:#00c853; color:#000; }
+    .btnSecondary{ background:#2979ff; color:#fff; }
+    .btnGhost{ background:rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.18); }
+    button:active{ transform:translateY(1px); }
+
+    #modLine{
+      margin-top:14px;
+      opacity:.9;
+      font-size:14px;
+    }
+    #modName{ color:#7CFC00; font-weight:900; }
+
+    /* hidden file input */
+    #modFile{ display:none; }
   </style>
 </head>
-
 <body>
-  <div id="gameTitle">Multiplayer</div>
+
+  <div id="menu">
+    <div class="panel">
+      <h1>🐢 Turtle Online</h1>
+      <p>Choose a mode</p>
+
+      <div class="btnRow">
+        <button class="btnPrimary" id="btnSingle">Singleplayer</button>
+        <button class="btnSecondary" id="btnMulti">Multiplayer</button>
+      </div>
+
+      <div style="height:14px;"></div>
+
+      <div class="btnRow">
+        <button class="btnGhost" id="btnLoadMod">Load Mod (Singleplayer)</button>
+        <button class="btnGhost" id="btnClearMod">Clear Mod</button>
+      </div>
+
+      <div id="modLine">
+        Current mod: <span id="modName">Default</span>
+      </div>
+
+      <input type="file" id="modFile" accept=".json" />
+    </div>
+  </div>
+
+  <div id="gameTitle">Singleplayer</div>
 
   <div id="hud">
-    Status: <span id="status">connecting...</span><br/>
+    Mode: <span id="modeLabel">-</span><br/>
+    Status: <span id="status">-</span><br/>
     Your id: <code id="myid">-</code><br/>
     Room: <span id="room">-</span><br/>
     Players online: <span id="count">0</span><br/>
-    Your score: <code id="myscore">0</code><br/>
-    Server: <code id="wsurl"></code><br/>
-    <span style="opacity:.85;">WASD move. Sword kills enemies. Chat: type + Enter.</span>
+    Score: <code id="score">0</code><br/>
+    Server: <code id="wsurl">-</code><br/>
+    <span style="opacity:.85;">WASD move. Sword kills enemies.</span>
   </div>
 
   <canvas id="game" width="800" height="500"></canvas>
@@ -66,249 +144,518 @@
     <input id="chatInput" placeholder="Type message and press Enter..." />
   </div>
 
-  <script>
-    const canvas = document.getElementById("game");
-    const ctx = canvas.getContext("2d");
+<script>
+/* =========================
+   COMMON
+========================= */
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-    const WS_URL = "wss://turtle-ws-server.onrender.com";
-    document.getElementById("wsurl").textContent = WS_URL;
+const menu = document.getElementById("menu");
+const titleEl = document.getElementById("gameTitle");
+const hud = document.getElementById("hud");
+const chat = document.getElementById("chat");
 
-    const statusEl = document.getElementById("status");
-    const myIdEl = document.getElementById("myid");
-    const roomEl = document.getElementById("room");
-    const countEl = document.getElementById("count");
-    const myScoreEl = document.getElementById("myscore");
+const modeLabel = document.getElementById("modeLabel");
+const statusEl = document.getElementById("status");
+const myIdEl = document.getElementById("myid");
+const roomEl = document.getElementById("room");
+const countEl = document.getElementById("count");
+const scoreEl = document.getElementById("score");
+const wsurlEl = document.getElementById("wsurl");
 
-    const chatInput = document.getElementById("chatInput");
-    const messagesDiv = document.getElementById("messages");
+const messagesDiv = document.getElementById("messages");
+const chatInput = document.getElementById("chatInput");
 
-    // Persisted token (score saved per browser)
-    const TOKEN_KEY = "turtle_token_v1";
-    function getToken() {
-      let t = localStorage.getItem(TOKEN_KEY);
-      if (!t) {
-        t = "t_" + Math.random().toString(16).slice(2) + Date.now().toString(16);
-        localStorage.setItem(TOKEN_KEY, t);
+const btnSingle = document.getElementById("btnSingle");
+const btnMulti = document.getElementById("btnMulti");
+const btnLoadMod = document.getElementById("btnLoadMod");
+const btnClearMod = document.getElementById("btnClearMod");
+const modFile = document.getElementById("modFile");
+const modNameEl = document.getElementById("modName");
+
+const WS_URL = "wss://turtle-ws-server.onrender.com";
+wsurlEl.textContent = WS_URL;
+
+const keys = { w:false, a:false, s:false, d:false };
+function clearKeys(){ for (const k in keys) keys[k] = false; }
+function isTyping(){ return document.activeElement === chatInput; }
+
+window.addEventListener("blur", clearKeys);
+document.addEventListener("visibilitychange", () => { if (document.hidden) clearKeys(); });
+
+window.addEventListener("keydown", (e) => {
+  if (MODE === "multiplayer" && isTyping()) return;
+  const k = e.key.toLowerCase();
+  if (k in keys) { keys[k] = true; e.preventDefault(); }
+});
+window.addEventListener("keyup", (e) => {
+  if (MODE === "multiplayer" && isTyping()) return;
+  const k = e.key.toLowerCase();
+  if (k in keys) { keys[k] = false; e.preventDefault(); }
+});
+
+/* =========================
+   SINGLEPLAYER MOD SYSTEM
+========================= */
+const DEFAULT_MOD = {
+  name: "Default",
+  enemy: { max: 14, spawnEveryMs: 900, speed: 2.3, size: 10 },
+  sword: { reach: 44, hitRadius: 10 },
+  out:   { outMs: 30000 }
+};
+
+let MOD = structuredClone(DEFAULT_MOD);
+
+function applyMod(mod) {
+  // super basic validation + clamps
+  const out = structuredClone(DEFAULT_MOD);
+
+  if (mod && typeof mod === "object") {
+    if (mod.name) out.name = String(mod.name).slice(0, 40);
+
+    if (mod.enemy) {
+      out.enemy.max = Math.max(0, Math.min(9999, Number(mod.enemy.max ?? out.enemy.max)));
+      out.enemy.spawnEveryMs = Math.max(50, Math.min(10000, Number(mod.enemy.spawnEveryMs ?? out.enemy.spawnEveryMs)));
+      out.enemy.speed = Math.max(0.2, Math.min(20, Number(mod.enemy.speed ?? out.enemy.speed)));
+      out.enemy.size = Math.max(3, Math.min(40, Number(mod.enemy.size ?? out.enemy.size)));
+    }
+    if (mod.sword) {
+      out.sword.reach = Math.max(10, Math.min(120, Number(mod.sword.reach ?? out.sword.reach)));
+      out.sword.hitRadius = Math.max(2, Math.min(40, Number(mod.sword.hitRadius ?? out.sword.hitRadius)));
+    }
+    if (mod.out) {
+      out.out.outMs = Math.max(1000, Math.min(120000, Number(mod.out.outMs ?? out.out.outMs)));
+    }
+  }
+  MOD = out;
+  modNameEl.textContent = MOD.name || "Mod";
+}
+
+btnLoadMod.addEventListener("click", () => {
+  modFile.value = "";
+  modFile.click();
+});
+
+modFile.addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  try {
+    const text = await file.text();
+    const mod = JSON.parse(text);
+    applyMod(mod);
+    alert("Mod loaded! Singleplayer only.");
+  } catch {
+    alert("Invalid mod file.");
+  }
+});
+
+btnClearMod.addEventListener("click", () => {
+  applyMod(DEFAULT_MOD);
+});
+
+/* =========================
+   GAME STATE
+========================= */
+let MODE = "menu"; // menu | singleplayer | multiplayer
+
+const me = {
+  id: null,
+  x: canvas.width/2,
+  y: canvas.height/2,
+  angle: 0,
+  speed: 3,
+  turnSpeed: 0.08,
+  score: 0,
+  outUntil: 0
+};
+
+// multiplayer
+let ws = null;
+let reconnectTimer = null;
+const players = {};
+let hazardsMP = [];
+
+// singleplayer enemies
+let hazardsSP = [];
+let lastSpawnSP = 0;
+
+function addMsg(text){
+  const div = document.createElement("div");
+  div.textContent = text;
+  messagesDiv.appendChild(div);
+  messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+chatInput.addEventListener("focus", clearKeys);
+chatInput.addEventListener("blur", clearKeys);
+chatInput.addEventListener("keydown", (e) => {
+  if (MODE !== "multiplayer") return;
+  if (e.key === "Enter" && chatInput.value.trim() !== "") {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "chat", text: chatInput.value.trim() }));
+    }
+    chatInput.value = "";
+    chatInput.blur();
+  }
+});
+
+function showGameUI(modeText) {
+  menu.style.display = "none";
+  canvas.style.display = "block";
+  titleEl.style.display = "block";
+  hud.style.display = "block";
+  titleEl.textContent = modeText;
+  modeLabel.textContent = modeText;
+
+  // reset HUD basics
+  myIdEl.textContent = me.id ?? "-";
+  roomEl.textContent = "-";
+  countEl.textContent = "0";
+  scoreEl.textContent = String(me.score || 0);
+}
+
+function goMenu() {
+  MODE = "menu";
+  menu.style.display = "grid";
+  canvas.style.display = "none";
+  titleEl.style.display = "none";
+  hud.style.display = "none";
+  chat.style.display = "none";
+  statusEl.textContent = "-";
+  clearKeys();
+
+  // close ws if any
+  if (ws) {
+    try { ws.close(); } catch {}
+    ws = null;
+  }
+}
+
+btnSingle.addEventListener("click", () => {
+  MODE = "singleplayer";
+  showGameUI("Singleplayer");
+  statusEl.textContent = "local";
+  chat.style.display = "none";
+  me.id = "LOCAL";
+  myIdEl.textContent = "LOCAL";
+  me.score = 0;
+  me.outUntil = 0;
+  hazardsSP = [];
+  lastSpawnSP = 0;
+});
+
+btnMulti.addEventListener("click", () => {
+  MODE = "multiplayer";
+  showGameUI("Multiplayer");
+  chat.style.display = "block";
+  messagesDiv.innerHTML = "";
+  connectWS();
+});
+
+/* =========================
+   MULTIPLAYER WS
+========================= */
+function connectWS() {
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+
+  statusEl.textContent = "connecting...";
+  ws = new WebSocket(WS_URL);
+
+  ws.addEventListener("open", () => {
+    statusEl.textContent = "connected";
+  });
+
+  ws.addEventListener("close", () => {
+    statusEl.textContent = "disconnected (reconnecting...)";
+    reconnectTimer = setTimeout(connectWS, 1200);
+  });
+
+  ws.addEventListener("message", (ev) => {
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch { return; }
+
+    if (msg.type === "welcome") {
+      me.id = msg.id;
+      myIdEl.textContent = me.id;
+      roomEl.textContent = msg.room ?? "-";
+    }
+
+    if (msg.type === "state") {
+      for (const p of msg.players) players[p.id] = p;
+      for (const id in players) {
+        if (!msg.players.find(p => p.id === id)) delete players[id];
       }
-      return t;
-    }
-    const myToken = getToken();
+      hazardsMP = msg.hazards || [];
+      countEl.textContent = msg.players.length;
 
-    const players = {};
-    let hazards = [];
-
-    const keys = { w:false, a:false, s:false, d:false };
-    function clearKeys(){ for (const k in keys) keys[k] = false; }
-
-    chatInput.addEventListener("focus", clearKeys);
-    chatInput.addEventListener("blur", clearKeys);
-    window.addEventListener("blur", clearKeys);
-    document.addEventListener("visibilitychange", () => { if (document.hidden) clearKeys(); });
-
-    function isTyping(){ return document.activeElement === chatInput; }
-
-    window.addEventListener("keydown", (e) => {
-      if (isTyping()) return;
-      const k = e.key.toLowerCase();
-      if (k in keys) { keys[k] = true; e.preventDefault(); }
-    });
-    window.addEventListener("keyup", (e) => {
-      if (isTyping()) return;
-      const k = e.key.toLowerCase();
-      if (k in keys) { keys[k] = false; e.preventDefault(); }
-    });
-
-    const me = {
-      id: null,
-      x: canvas.width/2,
-      y: canvas.height/2,
-      angle: 0,
-      speed: 3,
-      turnSpeed: 0.08
-    };
-
-    let ws = null;
-    let reconnectTimer = null;
-
-    function addMsg(text){
-      const div = document.createElement("div");
-      div.textContent = text;
-      messagesDiv.appendChild(div);
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    }
-
-    function connectWS() {
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-
-      statusEl.textContent = "connecting...";
-      ws = new WebSocket(WS_URL);
-
-      ws.addEventListener("open", () => {
-        statusEl.textContent = "connected";
-        // send token to load score
-        ws.send(JSON.stringify({ type: "hello", token: myToken }));
-      });
-
-      ws.addEventListener("close", (ev) => {
-        statusEl.textContent = "disconnected (reconnecting...)";
-        if (ev.code === 4001) addMsg("ServerBot: You were kicked (3 warnings). Refresh to rejoin.");
-        reconnectTimer = setTimeout(connectWS, 1200);
-      });
-
-      ws.addEventListener("message", (ev) => {
-        let msg;
-        try { msg = JSON.parse(ev.data); } catch { return; }
-
-        if (msg.type === "welcome") {
-          me.id = msg.id;
-          myIdEl.textContent = me.id;
-          roomEl.textContent = msg.room ?? "-";
-        }
-
-        if (msg.type === "score") {
-          myScoreEl.textContent = String(msg.score ?? 0);
-        }
-
-        if (msg.type === "state") {
-          for (const p of msg.players) players[p.id] = p;
-          for (const id in players) {
-            if (!msg.players.find(p => p.id === id)) delete players[id];
-          }
-          hazards = msg.hazards || [];
-          countEl.textContent = msg.players.length;
-
-          // update my score from state too
-          if (me.id && players[me.id]) myScoreEl.textContent = String(players[me.id].score ?? 0);
-        }
-
-        if (msg.type === "chat") {
-          addMsg(msg.from + ": " + msg.text);
-        }
-      });
-    }
-
-    connectWS();
-
-    // chat send
-    chatInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && chatInput.value.trim() !== "") {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: "chat", text: chatInput.value.trim() }));
-        }
-        chatInput.value = "";
-        chatInput.blur();
-      }
-    });
-
-    function amIOut() {
-      const p = players[me.id];
-      return p ? (p.outUntil || 0) > Date.now() : false;
-    }
-    function outSecondsLeft() {
-      const p = players[me.id];
-      return p ? Math.max(0, Math.ceil(((p.outUntil || 0) - Date.now())/1000)) : 0;
-    }
-
-    function update() {
-      if (amIOut()) { clearKeys(); return; }
-
-      if (keys.a) me.angle -= me.turnSpeed;
-      if (keys.d) me.angle += me.turnSpeed;
-
-      if (keys.w) { me.x += Math.cos(me.angle)*me.speed; me.y += Math.sin(me.angle)*me.speed; }
-      if (keys.s) { me.x -= Math.cos(me.angle)*me.speed; me.y -= Math.sin(me.angle)*me.speed; }
-
-      me.x = Math.max(0, Math.min(canvas.width, me.x));
-      me.y = Math.max(0, Math.min(canvas.height, me.y));
-
-      if (ws && ws.readyState === WebSocket.OPEN && me.id) {
-        ws.send(JSON.stringify({ type: "move", x: me.x, y: me.y, angle: me.angle }));
+      if (me.id && players[me.id]) {
+        scoreEl.textContent = String(players[me.id].score ?? 0);
       }
     }
 
-    function drawPlayer(p) {
-      const size = 18;
-      const isOut = (p.outUntil || 0) > Date.now();
+    if (msg.type === "chat") {
+      addMsg(msg.from + ": " + msg.text);
+    }
+  });
+}
 
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(p.angle);
+/* =========================
+   SINGLEPLAYER ENEMIES
+========================= */
+function spawnEnemySP() {
+  const edge = Math.floor(Math.random() * 4);
+  let x, y;
 
-      // body triangle
-      ctx.beginPath();
-      ctx.moveTo(size, 0);
-      ctx.lineTo(-size * 0.8, size * 0.6);
-      ctx.lineTo(-size * 0.8, -size * 0.6);
-      ctx.closePath();
-      ctx.globalAlpha = isOut ? 0.25 : 1.0;
-      ctx.fillStyle = p.color || "green";
-      ctx.fill();
+  if (edge === 0) { x = Math.random() * canvas.width; y = -20; }
+  if (edge === 1) { x = canvas.width + 20; y = Math.random() * canvas.height; }
+  if (edge === 2) { x = Math.random() * canvas.width; y = canvas.height + 20; }
+  if (edge === 3) { x = -20; y = Math.random() * canvas.height; }
 
-      // sword triangle (front)
-      ctx.beginPath();
-      ctx.moveTo(size + 18, 0);
-      ctx.lineTo(size + 2, 5);
-      ctx.lineTo(size + 2, -5);
-      ctx.closePath();
-      ctx.fillStyle = "gray";
-      ctx.fill();
+  const tx = canvas.width * 0.5 + (Math.random() * 140 - 70);
+  const ty = canvas.height * 0.5 + (Math.random() * 140 - 70);
+  const dx = tx - x;
+  const dy = ty - y;
+  const len = Math.hypot(dx, dy) || 1;
 
-      ctx.restore();
+  hazardsSP.push({
+    x, y,
+    vx: (dx / len) * MOD.enemy.speed,
+    vy: (dy / len) * MOD.enemy.speed,
+    size: MOD.enemy.size
+  });
+}
 
-      // name + score
-      ctx.globalAlpha = 1;
-      ctx.font = "bold 16px Arial";
-      ctx.textAlign = "center";
-      ctx.fillStyle = "black";
-      ctx.fillText(`${p.label || "Player"} (${p.score ?? 0})`, p.x, p.y - 25);
+function swordTipLocal() {
+  return {
+    x: me.x + Math.cos(me.angle) * MOD.sword.reach,
+    y: me.y + Math.sin(me.angle) * MOD.sword.reach
+  };
+}
 
-      if (isOut) {
-        const left = Math.max(0, Math.ceil(((p.outUntil || 0) - Date.now()) / 1000));
-        ctx.font = "bold 14px Arial";
-        ctx.fillStyle = "red";
-        ctx.fillText(`OUT ${left}s`, p.x, p.y - 7);
+/* =========================
+   UPDATE + DRAW
+========================= */
+function amIOutLocal() {
+  return me.outUntil > Date.now();
+}
+function outSecondsLeftLocal() {
+  return Math.max(0, Math.ceil((me.outUntil - Date.now()) / 1000));
+}
+
+function updateCommonMovement() {
+  if (keys.a) me.angle -= me.turnSpeed;
+  if (keys.d) me.angle += me.turnSpeed;
+
+  if (keys.w) { me.x += Math.cos(me.angle) * me.speed; me.y += Math.sin(me.angle) * me.speed; }
+  if (keys.s) { me.x -= Math.cos(me.angle) * me.speed; me.y -= Math.sin(me.angle) * me.speed; }
+
+  me.x = Math.max(0, Math.min(canvas.width, me.x));
+  me.y = Math.max(0, Math.min(canvas.height, me.y));
+}
+
+function update() {
+  if (MODE === "menu") return;
+
+  // OUT check (singleplayer only)
+  if (MODE === "singleplayer" && amIOutLocal()) {
+    clearKeys();
+  } else {
+    updateCommonMovement();
+  }
+
+  // Multiplayer: send move
+  if (MODE === "multiplayer") {
+    if (ws && ws.readyState === WebSocket.OPEN && me.id) {
+      ws.send(JSON.stringify({ type: "move", x: me.x, y: me.y, angle: me.angle }));
+    }
+  }
+
+  // Singleplayer: spawn + move + collisions
+  if (MODE === "singleplayer") {
+    const t = Date.now();
+
+    // spawn using MOD
+    if (t - lastSpawnSP >= MOD.enemy.spawnEveryMs) {
+      lastSpawnSP = t;
+
+      // "No limit": set max huge in mod (9999). Still can protect browser a bit:
+      if (hazardsSP.length < MOD.enemy.max) spawnEnemySP();
+    }
+
+    // move enemies
+    for (const h of hazardsSP) {
+      h.x += h.vx;
+      h.y += h.vy;
+    }
+    // remove far
+    hazardsSP = hazardsSP.filter(h => h.x > -80 && h.x < canvas.width+80 && h.y > -80 && h.y < canvas.height+80);
+
+    // sword kills
+    if (!amIOutLocal()) {
+      const tip = swordTipLocal();
+      const remain = [];
+      for (const h of hazardsSP) {
+        const d = Math.hypot(tip.x - h.x, tip.y - h.y);
+        if (d <= (h.size + MOD.sword.hitRadius)) {
+          me.score += 1;
+          scoreEl.textContent = String(me.score);
+        } else {
+          remain.push(h);
+        }
+      }
+      hazardsSP = remain;
+    }
+
+    // enemy touches player -> OUT
+    if (!amIOutLocal()) {
+      for (const h of hazardsSP) {
+        const d = Math.hypot(me.x - h.x, me.y - h.y);
+        if (d <= (18 + h.size)) {
+          me.outUntil = Date.now() + MOD.out.outMs;
+          me.x = canvas.width/2;
+          me.y = canvas.height/2;
+          me.angle = 0;
+          break;
+        }
       }
     }
+  }
+}
 
-    function drawHazard(h) {
-      const angle = Math.atan2(h.vy, h.vx);
-      const s = h.size || 10;
+function drawSwordAndBody(color, isOut) {
+  const size = 18;
 
-      ctx.save();
-      ctx.translate(h.x, h.y);
-      ctx.rotate(angle);
+  // body triangle
+  ctx.beginPath();
+  ctx.moveTo(size, 0);
+  ctx.lineTo(-size * 0.8, size * 0.6);
+  ctx.lineTo(-size * 0.8, -size * 0.6);
+  ctx.closePath();
+  ctx.globalAlpha = isOut ? 0.25 : 1.0;
+  ctx.fillStyle = color;
+  ctx.fill();
 
-      ctx.beginPath();
-      ctx.moveTo(s, 0);
-      ctx.lineTo(-s * 0.9, s * 0.6);
-      ctx.lineTo(-s * 0.9, -s * 0.6);
-      ctx.closePath();
-      ctx.fillStyle = "black";
-      ctx.fill();
+  // sword (handle + blade)
+  const bladeLen = 28;
+  const bladeW = 6;
+  const handleLen = 10;
+  const handleW = 8;
 
-      ctx.restore();
-    }
+  const swordStartX = size + 2;
+  const swordCenterY = 0;
 
-    function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#5b3a29";
+  ctx.fillRect(swordStartX - handleLen, swordCenterY - handleW/2, handleLen, handleW);
 
-      for (const h of hazards) drawHazard(h);
-      for (const id in players) drawPlayer(players[id]);
+  ctx.fillStyle = "#777";
+  ctx.fillRect(swordStartX - 2, swordCenterY - 10/2, 4, 10);
 
-      if (amIOut()) {
-        ctx.font = "bold 28px Arial";
-        ctx.textAlign = "center";
-        ctx.fillStyle = "red";
-        ctx.fillText(`YOU ARE OUT: ${outSecondsLeft()}s`, canvas.width/2, 60);
-      }
-    }
+  ctx.fillStyle = "#c0c0c0";
+  ctx.beginPath();
+  ctx.moveTo(swordStartX, swordCenterY - bladeW/2);
+  ctx.lineTo(swordStartX + bladeLen, swordCenterY);
+  ctx.lineTo(swordStartX, swordCenterY + bladeW/2);
+  ctx.closePath();
+  ctx.fill();
 
-    function loop() {
-      update();
-      draw();
-      requestAnimationFrame(loop);
-    }
-    loop();
-  </script>
+  ctx.strokeStyle = "white";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(swordStartX + 4, swordCenterY - 1);
+  ctx.lineTo(swordStartX + bladeLen - 6, swordCenterY - 1);
+  ctx.stroke();
+
+  ctx.globalAlpha = 1.0;
+}
+
+function drawEnemy(h) {
+  const angle = Math.atan2(h.vy, h.vx);
+  const s = h.size || 10;
+
+  ctx.save();
+  ctx.translate(h.x, h.y);
+  ctx.rotate(angle);
+
+  ctx.beginPath();
+  ctx.moveTo(s, 0);
+  ctx.lineTo(-s * 0.9, s * 0.6);
+  ctx.lineTo(-s * 0.9, -s * 0.6);
+  ctx.closePath();
+  ctx.fillStyle = "black";
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawPlayerSP() {
+  ctx.save();
+  ctx.translate(me.x, me.y);
+  ctx.rotate(me.angle);
+  drawSwordAndBody("green", amIOutLocal());
+  ctx.restore();
+
+  ctx.font = "bold 16px Arial";
+  ctx.textAlign = "center";
+  ctx.fillStyle = "black";
+  ctx.fillText(`Player (${me.score})`, me.x, me.y - 25);
+
+  if (amIOutLocal()) {
+    ctx.font = "bold 24px Arial";
+    ctx.fillStyle = "red";
+    ctx.fillText(`OUT: ${outSecondsLeftLocal()}s`, canvas.width/2, 60);
+  }
+}
+
+function drawPlayerMP(p) {
+  const isOut = (p.outUntil || 0) > Date.now();
+
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(p.angle);
+  drawSwordAndBody(p.color || "green", isOut);
+  ctx.restore();
+
+  ctx.font = "bold 16px Arial";
+  ctx.textAlign = "center";
+  ctx.fillStyle = "black";
+  ctx.fillText(`${p.label || "Player"} (${p.score ?? 0})`, p.x, p.y - 25);
+
+  if (isOut) {
+    const left = Math.max(0, Math.ceil(((p.outUntil || 0) - Date.now())/1000));
+    ctx.font = "bold 14px Arial";
+    ctx.fillStyle = "red";
+    ctx.fillText(`OUT ${left}s`, p.x, p.y - 7);
+  }
+}
+
+function draw() {
+  if (MODE === "menu") return;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (MODE === "singleplayer") {
+    for (const h of hazardsSP) drawEnemy(h);
+    drawPlayerSP();
+  }
+
+  if (MODE === "multiplayer") {
+    for (const h of hazardsMP) drawEnemy(h);
+    for (const id in players) drawPlayerMP(players[id]);
+  }
+}
+
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+
+/* Start in menu */
+applyMod(DEFAULT_MOD);
+goMenu();
+</script>
 </body>
 </html>
