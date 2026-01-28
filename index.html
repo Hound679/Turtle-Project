@@ -1,9 +1,11 @@
+<!-- index.html (FULL) ✅ Sword (nice) + Enemies + OUT 30s + Chat + WASD blocked while typing + Score saved + Leaderboard HUD -->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Turtle Online (Sword + Enemies + OUT + Score)</title>
+  <title>Turtle Online (Sword + Enemies + OUT + Score + Leaderboard)</title>
   <style>
     body { margin: 0; display: grid; place-items: center; height: 100vh; background: #111; font-family: Arial, sans-serif; }
     canvas { background: #fff; border: 2px solid #000; }
@@ -20,9 +22,17 @@
       position: fixed; top: 10px; left: 10px;
       background: rgba(0,0,0,.75); color: #fff; padding: 10px 12px;
       font: 14px Arial; border-radius: 10px;
-      min-width: 320px;
+      min-width: 340px;
     }
     #hud code{ color: #7CFC00; }
+    #lb{
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255,255,255,.18);
+      font-size: 13px;
+      line-height: 1.25;
+    }
+    #lbTitle{ font-weight: 800; margin-bottom: 4px; }
 
     #chat{
       position: fixed; bottom: 10px; left: 50%;
@@ -57,6 +67,11 @@
     Your score: <code id="myscore">0</code><br/>
     Server: <code id="wsurl"></code><br/>
     <span style="opacity:.85;">WASD move. Sword kills enemies. Chat: type + Enter.</span>
+
+    <div id="lb">
+      <div id="lbTitle">Leaderboard (Top 10)</div>
+      <div id="lbList" style="opacity:.95;">-</div>
+    </div>
   </div>
 
   <canvas id="game" width="800" height="500"></canvas>
@@ -78,6 +93,7 @@
     const roomEl = document.getElementById("room");
     const countEl = document.getElementById("count");
     const myScoreEl = document.getElementById("myscore");
+    const lbListEl = document.getElementById("lbList");
 
     const chatInput = document.getElementById("chatInput");
     const messagesDiv = document.getElementById("messages");
@@ -96,6 +112,7 @@
 
     const players = {};
     let hazards = [];
+    let leaderboard = [];
 
     const keys = { w:false, a:false, s:false, d:false };
     function clearKeys(){ for (const k in keys) keys[k] = false; }
@@ -137,6 +154,22 @@
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
 
+    function renderLeaderboard() {
+      if (!leaderboard || leaderboard.length === 0) {
+        lbListEl.textContent = "-";
+        return;
+      }
+
+      const myScore = Number(myScoreEl.textContent || "0");
+      const lines = leaderboard.map((e, i) => {
+        const isMe = (e.token === myToken);
+        const name = isMe ? "YOU" : ("Player");
+        return `${i+1}) ${name} - ${e.score}`;
+      });
+
+      lbListEl.textContent = lines.join(" | ");
+    }
+
     function connectWS() {
       if (reconnectTimer) clearTimeout(reconnectTimer);
 
@@ -145,7 +178,6 @@
 
       ws.addEventListener("open", () => {
         statusEl.textContent = "connected";
-        // send token to load score
         ws.send(JSON.stringify({ type: "hello", token: myToken }));
       });
 
@@ -174,11 +206,14 @@
           for (const id in players) {
             if (!msg.players.find(p => p.id === id)) delete players[id];
           }
+
           hazards = msg.hazards || [];
+          leaderboard = msg.leaderboard || [];
           countEl.textContent = msg.players.length;
 
-          // update my score from state too
           if (me.id && players[me.id]) myScoreEl.textContent = String(players[me.id].score ?? 0);
+
+          renderLeaderboard();
         }
 
         if (msg.type === "chat") {
@@ -244,14 +279,49 @@
       ctx.fillStyle = p.color || "green";
       ctx.fill();
 
-      // sword triangle (front)
+      // ✅ REAL SWORD (handle + blade) in front
+      const bladeLen = 28;
+      const bladeW = 6;
+      const handleLen = 10;
+      const handleW = 8;
+
+      const swordStartX = size + 2;
+      const swordCenterY = 0;
+
+      // handle
+      ctx.fillStyle = "#5b3a29";
+      ctx.fillRect(
+        swordStartX - handleLen,
+        swordCenterY - handleW / 2,
+        handleLen,
+        handleW
+      );
+
+      // guard
+      ctx.fillStyle = "#777";
+      ctx.fillRect(
+        swordStartX - 2,
+        swordCenterY - 10 / 2,
+        4,
+        10
+      );
+
+      // blade
+      ctx.fillStyle = "#c0c0c0";
       ctx.beginPath();
-      ctx.moveTo(size + 18, 0);
-      ctx.lineTo(size + 2, 5);
-      ctx.lineTo(size + 2, -5);
+      ctx.moveTo(swordStartX, swordCenterY - bladeW / 2);
+      ctx.lineTo(swordStartX + bladeLen, swordCenterY);
+      ctx.lineTo(swordStartX, swordCenterY + bladeW / 2);
       ctx.closePath();
-      ctx.fillStyle = "gray";
       ctx.fill();
+
+      // shine
+      ctx.strokeStyle = "white";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(swordStartX + 4, swordCenterY - 1);
+      ctx.lineTo(swordStartX + bladeLen - 6, swordCenterY - 1);
+      ctx.stroke();
 
       ctx.restore();
 
