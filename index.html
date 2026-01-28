@@ -3,16 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Turtle Online (8 players)</title>
+  <title>Turtle Online</title>
   <style>
     body { margin: 0; display: grid; place-items: center; height: 100vh; background: #111; font-family: Arial, sans-serif; }
     canvas { background: #fff; border: 2px solid #000; }
-    #hud{
-      position: fixed; top: 10px; left: 10px;
-      background: rgba(0,0,0,.7); color: #fff; padding: 10px 12px;
-      font: 14px Arial; border-radius: 10px; max-width: 360px;
-    }
-    #hud code{ color: #7CFC00; }
+
+    /* Title */
     #gameTitle{
       position: fixed;
       top: 14px;
@@ -25,183 +21,252 @@
       text-shadow: 0 2px 10px rgba(0,0,0,.6);
       user-select: none;
     }
+
+    /* HUD */
+    #hud{
+      position: fixed; top: 10px; left: 10px;
+      background: rgba(0,0,0,.75); color: #fff; padding: 10px 12px;
+      font: 14px Arial; border-radius: 10px;
+      min-width: 280px;
+    }
+    #hud code{ color: #7CFC00; }
+
+    /* Chat UI */
+    #chat{
+      position: fixed;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(520px, 92vw);
+      background: rgba(0,0,0,.75);
+      border-radius: 12px;
+      padding: 8px;
+      color: white;
+      font-size: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.45);
+    }
+    #messages{
+      max-height: 140px;
+      overflow-y: auto;
+      margin-bottom: 6px;
+      padding-right: 4px;
+    }
+    #messages div{ margin-bottom: 4px; }
+    #chatInput{
+      width: 100%;
+      box-sizing: border-box;
+      border-radius: 8px;
+      border: none;
+      padding: 8px 10px;
+      outline: none;
+      font-size: 14px;
+    }
   </style>
 </head>
-<body>
 
+<body>
   <div id="gameTitle">Multiplayer</div>
 
   <div id="hud">
     Status: <span id="status">connecting...</span><br/>
     Your id: <code id="myid">-</code><br/>
+    Room: <span id="room">-</span><br/>
     Players online: <span id="count">0</span><br/>
-    Server: <code id="wsurl"></code><br/>
-    <span style="opacity:.8;">Tip: Click the game and use WASD</span>
+    Server: <code id="wsurl"></code>
   </div>
 
   <canvas id="game" width="800" height="500"></canvas>
 
+  <!-- Chat -->
+  <div id="chat">
+    <div id="messages"></div>
+    <input id="chatInput" placeholder="Type message and press Enter..." />
+  </div>
+
   <script>
-  const canvas = document.getElementById("game");
-  const ctx = canvas.getContext("2d");
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
 
-  // ✅ TU WEBSOCKET (sin slash final)
-  const WS_URL = "wss://turtle-ws-server.onrender.com";
-  document.getElementById("wsurl").textContent = WS_URL;
+    // ✅ YOUR WebSocket URL
+    const WS_URL = "wss://turtle-ws-server.onrender.com";
+    document.getElementById("wsurl").textContent = WS_URL;
 
-  // HUD
-  const statusEl = document.getElementById("status");
-  const myIdEl = document.getElementById("myid");
-  const countEl = document.getElementById("count");
+    // HUD
+    const statusEl = document.getElementById("status");
+    const myIdEl = document.getElementById("myid");
+    const roomEl = document.getElementById("room");
+    const countEl = document.getElementById("count");
 
-  // Estado de jugadores recibidos del server
-  const players = {}; // {id: {x,y,angle,color,label}}
+    // Chat elements
+    const chatInput = document.getElementById("chatInput");
+    const messagesDiv = document.getElementById("messages");
 
-  // Input local (WASD)
-  const keys = { w:false, a:false, s:false, d:false };
+    // Players state from server (room-scoped)
+    const players = {}; // {id: {x,y,angle,color,label}}
 
-  function clearKeys() {
-    for (const k in keys) keys[k] = false;
-  }
+    // Local input (WASD)
+    const keys = { w:false, a:false, s:false, d:false };
 
-  // ✅ ARREGLO: si cambias de pestaña / pierdes foco, apaga teclas "pegadas"
-  window.addEventListener("blur", clearKeys);
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) clearKeys();
-  });
-
-  window.addEventListener("keydown", (e) => {
-    const k = e.key.toLowerCase();
-    if (k in keys) {
-      keys[k] = true;
-      e.preventDefault();
+    function clearKeys(){
+      for (const k in keys) keys[k] = false;
     }
-  });
+    window.addEventListener("blur", clearKeys);
+    document.addEventListener("visibilitychange", () => { if (document.hidden) clearKeys(); });
 
-  window.addEventListener("keyup", (e) => {
-    const k = e.key.toLowerCase();
-    if (k in keys) {
-      keys[k] = false;
-      e.preventDefault();
-    }
-  });
-
-  // Mi estado local
-  const me = {
-    id: null,
-    x: canvas.width/2,
-    y: canvas.height/2,
-    angle: 0,
-    speed: 3,
-    turnSpeed: 0.08
-  };
-
-  // WebSocket
-  let ws = null;
-
-  function connectWS() {
-    ws = new WebSocket(WS_URL);
-
-    ws.addEventListener("open", () => {
-      statusEl.textContent = "connected";
+    window.addEventListener("keydown", (e) => {
+      const k = e.key.toLowerCase();
+      if (k in keys) { keys[k] = true; e.preventDefault(); }
+    });
+    window.addEventListener("keyup", (e) => {
+      const k = e.key.toLowerCase();
+      if (k in keys) { keys[k] = false; e.preventDefault(); }
     });
 
-    ws.addEventListener("close", () => {
-      statusEl.textContent = "disconnected";
-    });
+    // My local state
+    const me = {
+      id: null,
+      x: canvas.width / 2,
+      y: canvas.height / 2,
+      angle: 0,
+      speed: 3,
+      turnSpeed: 0.08
+    };
 
-    ws.addEventListener("message", (ev) => {
-      const msg = JSON.parse(ev.data);
+    // WebSocket
+    let ws = null;
+    let reconnectTimer = null;
 
-      if (msg.type === "welcome") {
-        me.id = msg.id;
-        myIdEl.textContent = me.id;
-      }
+    function connectWS() {
+      if (reconnectTimer) clearTimeout(reconnectTimer);
 
-      if (msg.type === "full") {
-        statusEl.textContent = "server full (2 players max)";
-        return;
-      }
+      statusEl.textContent = "connecting...";
+      ws = new WebSocket(WS_URL);
 
-      if (msg.type === "state") {
-        // msg.players = array de jugadores
-        for (const p of msg.players) {
-          players[p.id] = p;
+      ws.addEventListener("open", () => {
+        statusEl.textContent = "connected";
+      });
+
+      ws.addEventListener("close", () => {
+        statusEl.textContent = "disconnected (reconnecting...)";
+        reconnectTimer = setTimeout(connectWS, 1200);
+      });
+
+      ws.addEventListener("message", (ev) => {
+        let msg;
+        try { msg = JSON.parse(ev.data); } catch { return; }
+
+        if (msg.type === "full") {
+          statusEl.textContent = "server full";
+          return;
         }
-        // borra los que ya no están
-        for (const id in players) {
-          if (!msg.players.find(p => p.id === id)) delete players[id];
+
+        if (msg.type === "welcome") {
+          me.id = msg.id;
+          myIdEl.textContent = me.id;
+          roomEl.textContent = msg.room ?? "-";
         }
-        countEl.textContent = msg.players.length;
+
+        if (msg.type === "state") {
+          for (const p of msg.players) players[p.id] = p;
+          for (const id in players) {
+            if (!msg.players.find(p => p.id === id)) delete players[id];
+          }
+          countEl.textContent = msg.players.length;
+        }
+
+        // ✅ Chat message received
+        if (msg.type === "chat") {
+          const div = document.createElement("div");
+          div.textContent = msg.from + ": " + msg.text;
+          messagesDiv.appendChild(div);
+          messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+      });
+    }
+
+    connectWS();
+
+    // ✅ Send chat on Enter
+    chatInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && chatInput.value.trim() !== "") {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "chat", text: chatInput.value.trim() }));
+        }
+        chatInput.value = "";
       }
     });
-  }
 
-  connectWS();
+    function update() {
+      // Rotation
+      if (keys.a) me.angle -= me.turnSpeed;
+      if (keys.d) me.angle += me.turnSpeed;
 
-  function update() {
-    // Rotación
-    if (keys.a) me.angle -= me.turnSpeed;
-    if (keys.d) me.angle += me.turnSpeed;
+      // Movement forward/back
+      if (keys.w) {
+        me.x += Math.cos(me.angle) * me.speed;
+        me.y += Math.sin(me.angle) * me.speed;
+      }
+      if (keys.s) {
+        me.x -= Math.cos(me.angle) * me.speed;
+        me.y -= Math.sin(me.angle) * me.speed;
+      }
 
-    // Movimiento adelante/atrás
-    if (keys.w) {
-      me.x += Math.cos(me.angle) * me.speed;
-      me.y += Math.sin(me.angle) * me.speed;
+      // Screen bounds
+      me.x = Math.max(0, Math.min(canvas.width, me.x));
+      me.y = Math.max(0, Math.min(canvas.height, me.y));
+
+      // Send my state to server
+      if (ws && ws.readyState === WebSocket.OPEN && me.id) {
+        ws.send(JSON.stringify({ type: "move", x: me.x, y: me.y, angle: me.angle }));
+      }
     }
-    if (keys.s) {
-      me.x -= Math.cos(me.angle) * me.speed;
-      me.y -= Math.sin(me.angle) * me.speed;
+
+    function drawPlayer(p) {
+      const size = 18;
+
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.angle);
+
+      ctx.beginPath();
+      ctx.moveTo(size, 0);
+      ctx.lineTo(-size * 0.8, size * 0.6);
+      ctx.lineTo(-size * 0.8, -size * 0.6);
+      ctx.closePath();
+      ctx.fillStyle = p.color || "green";
+      ctx.fill();
+
+      ctx.restore();
+
+      ctx.font = "bold 16px Arial";
+      ctx.textAlign = "center";
+      ctx.fillStyle = "black";
+      ctx.fillText(p.label || "Player", p.x, p.y - 25);
     }
 
-    // límites de pantalla
-    me.x = Math.max(0, Math.min(canvas.width, me.x));
-    me.y = Math.max(0, Math.min(canvas.height, me.y));
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Enviar mi estado al servidor
-    if (ws && ws.readyState === WebSocket.OPEN && me.id) {
-      ws.send(JSON.stringify({
-        type: "move",
-        x: me.x, y: me.y, angle: me.angle
-      }));
+      for (const id in players) {
+        drawPlayer(players[id]);
+      }
+
+      // Helpful hint
+      if (Number(countEl.textContent) === 1) {
+        ctx.font = "bold 24px Arial";
+        ctx.textAlign = "center";
+        ctx.fillStyle = "gray";
+        ctx.fillText("Waiting for other players...", canvas.width / 2, 60);
+      }
     }
-  }
 
-  function drawPlayer(p) {
-    const size = 18;
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
 
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    ctx.rotate(p.angle);
-
-    ctx.beginPath();
-    ctx.moveTo(size, 0);
-    ctx.lineTo(-size * 0.8, size * 0.6);
-    ctx.lineTo(-size * 0.8, -size * 0.6);
-    ctx.closePath();
-    ctx.fillStyle = p.color;
-    ctx.fill();
-
-    ctx.restore();
-
-    ctx.font = "bold 16px Arial";
-    ctx.textAlign = "center";
-    ctx.fillStyle = "black";
-    ctx.fillText(p.label, p.x, p.y - 25);
-  }
-
-  function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    for (const id in players) drawPlayer(players[id]);
-  }
-
-  function loop() {
-    update();
-    draw();
-    requestAnimationFrame(loop);
-  }
-
-  loop();
+    loop();
   </script>
 </body>
 </html>
